@@ -7,12 +7,11 @@ output: html_document
 
 ## Loading in data
 ```{r}
-install.packages("readxl")
 library(readxl)
 ```
 
 ```{r}
-population <- read_excel("~/Cognitive Science/6th semester/spatial/Exam/data/befolkningstal.xlsx", skip = 2)
+population <- read_excel("FOLK1AM.xlsx", skip = 2)
 
 #12. måned 2024
 colnames(population) <- c("In total", "Municipality", "Population")
@@ -21,223 +20,21 @@ colnames(population) <- c("In total", "Municipality", "Population")
 
 ```{r}
 
-students <- read_excel("~/Cognitive Science/6th semester/spatial/Exam/data/elever_på_musikskole.xlsx", skip = 2)
+students <- read_excel("SKOLM02B.xlsx", skip = 2)
 
 #2023:2024
 colnames(students) <- c("In total", "Municipality", "N_Students")
 ```
 
 
-## Geocoding the Music Schools
-
 ```{r}
-# Install and load tidygeocoder
-install.packages("tidygeocoder")
 library(tidygeocoder)
 library(tidyverse)
 library(dplyr)
 library(osmdata)
 library(sf)
 
-#Some schoold have multiple adresses - so more in one municipality but in smaller cities. For the purpose of this study only the primary adresses have been used as it was hard to control for for all of the music schools.Limitations Though it is one music school just divided up for mutiple locations. For example some places some days and vice versa. 
-
-
-names_schools <- c("Aabenraa Musikskole", 
-                   "Aalborg Kulturskole", 
-                   "Aarhus Musikskole", 
-                   "Albertslund Musikskole", 
-                   "Allerød Musikskole", 
-                   "Assens Musikskole", 
-                   "Ballerup musik- & kulturskole", 
-                   "Billund Kulturskole", 
-                   "Bornholms Kulturskole", 
-                   "Brøndby Musikskole", 
-                   "Kulturskolen Brønderslev Kommune", 
-                   "Dansk Talentakademi", 
-                   "Dragør Musik- og Kulturskole", 
-                   "Egedal Musik- og Kulturskole", 
-                   "Kulturskolen Esbjerg", 
-                   "Faaborg-Midtfyn Musikskole", 
-                   "Favrskov Musikskole", 
-                   "Faxe Musikskole", 
-                   "Fredensborg Musikskole", 
-                   "Den Kreative Skole Fredericia", 
-                   "Musikhøjskolen, Frederiksberg Musik- og Kulturskole", 
-                   "Frederikssund Musikskole", 
-                   "Furesø Musikskole", 
-                   "Kulturskolerne i Gentofte", 
-                   "Gladsaxe Musik- og Billedskole", 
-                   "Glostrup Musikskole", 
-                   "Greve Kultur-Base", 
-                   "Kulturskolen Gribskov", 
-                   "Guldborgsund Musikskole", 
-                   "Haderslev Musikskole", 
-                   "Musik- og Billedskolen, Unge- og Kulturcentret Halsnæs", 
-                   "Kulturskolen Hedensted", 
-                   "Helsingør Musikskole", 
-                   "Herlev Musikskole", 
-                   "Herning Musikskole", 
-                   "Hillerød Musikskole", 
-                   "Hjørring Musiske Skole", 
-                   "Holbæk Kulturskole", 
-                   "Holstebro Musikskole", 
-                   "Musik- & Balletskolen Horsens", 
-                   "Hvidovre Musikskole", 
-                   "Kulturskolerne i Høje-Taastrup Kommune", 
-                   "Hørsholm Musikskole", 
-                   "Kulturskolerne Ikast-Brande", 
-                   "Ishøj Kulturskole", 
-                   "Jammerbugt Kulturskole", 
-                   "Musisk Skole Kalundborg", 
-                   "Musik og Kulturskolen Kerteminde", 
-                   "Kulturskolen Kolding", 
-                   "Københavns Kommunes Musikskole", 
-                   "Køge Musikskole", 
-                   "Langeland Musikskole", 
-                   "Lejre Musik- og Billedskole", 
-                   "Lemvig Musikskole", 
-                   "Lolland Musikskole", 
-                   "Lyngby-Taarbæk Musik- og Billedskole", 
-                   "Mariagerfjord Kulturskole", 
-                   "Middelfart Musikskole", 
-                   "Musikskolen på Mors", 
-                   "Musikskolen i Frederikshavn Kommune", 
-                   "Musikskolen på Læsø", 
-                   "Kulturskolen Norddjurs", 
-                   "Nordfyns Musikskole", 
-                   "Nyborg Kulturskole", 
-                   "Næstved Musikskole", 
-                   "Odder Musikskole", 
-                   "Odsherred Musikskole", 
-                   "Randers Musikskole", 
-                   "Rebild Kulturskole", 
-                   "Kulturskolen Ringkøbing-Skjern", 
-                   "Ringsted Musik & Kulturskole", 
-                   "Kulturskolen Roskilde", 
-                   "Rudersdal Musik- og Billedskole", "Rytmisk Center", "Rødovre Musikskole", "Den Kreative Skole Silkeborg", "Kulturskolen Skanderborg", "Skive Musikskole", "Solrød Kommunale Musikskole", "Sorø Musiske Skole", "Stevns Musikskole", "Struer Musikskole", "Svendborg Musikskole", "Kulturskolen Syddjurs", "Sønderborg Musikskole", "Musik- & Kultur- skolen i Thy", "Tårnby Musikskole", "Tønder Kulturskole", "Vallensbæk Musikskole", "Musik- & Billedskolen Varde", "Vejen Musikskole", "Vejle Musik- og Kulturskole", "Kulturskolen Vesthimmerland", "Kulturskolen Viborg", "Vordingborg Musikskole", "Viften Musikskole Ærø", "Sjællands Kirkemusikskole", "Kratholmskolen", "Hillerød Musikaftenskole", "Minimusik", "Complete Vocal Institute ApS", "Holbæk & Omegns Musikskole Holbæk", "Ørestad Musikskole", "Solrød Musikskole", "Den Kreative Skole Aarhus", "Nykøbing F. Koret", "Peder Most Garden", "Københavns lille Musikskole", "Holbæk og Omegns Musikskole", "Musikskolen for Voksne", "Musica Art", "Odense Musikskole", "Slagelse Musikskole og MGK", "Det Danske Suzuki Institut", "Kulturskolen Ringkøbing-Skjern", "Musikaftenskolen Lillebælt", "Sydjyllands Musikskole", "Musikskolen På Bernadotteskolen", "MusikBasen", "Furesø Musikskole, Værløse afdeling", "Køge Musikaftenskole", "Rytmisk Center", "Løgumkloster Kirkemusikskole", "Rytmikhuset", "Musikskolen i Frederikshavn Kommune - Sæby afdeling", "Thisted Musikskole Sydthy Afd.", "Lautrupgaard Musikfabrik", "Musikaftenskolen Maxima", "Musikskolen i Frederikshavn Kommune - Skagen afdeling", "Otterup Musikaftenskole", "Musikskolen Jernløse", "Flemming's Musikskole", "Lysholm Jepsens Klaverskole", "Musikskole Kelstrupskov - Vissenbjerg", "Musikskolen SPIL OP i Glostrup og Høje-Taastrup", "Den Musiske Helhedsskole", "Vidars Musikskole", "Musikskolen Syddjurs Friskole", "Byens Musikskole", "Busses Musikskole", "Musikskolen Musika I Aarhus", "Bakkegårdens Musikskole", "Vejen Musikskoles Aftenskole", "Magisk Musikskole", "Musikskolen Skolevænget 33", "Haderslev Musikskole", "Højbo Musikskole-Kreativ Fritid", "Skibby Musikskole", "Ryparken Musikskole", "Musisk Aftenskole", "Fejø Musikskole", "Arden Musikskole", "Bredebro Musikskole", "Hadsund Musikskole", "Musikskolen Årslev-Ryslinge", "Kor og Musikskolen på Østerbro", "Musikskolen Broby-Faaborg", "Musikskolen Faaborg-Broby", "Musikskolen Almus", "Musikskolen Brabrand Musik", "Musikskolen I Skærbæk", "Musikskolen Aaskov")
-  
-address_schools <- c("Nygade 21, 6200 Aabenraa, Denmark", 
-                     "Teglgårds Plads 1, 9000 Aalborg, Denmark", 
-                     "Vester Allé 3, 8000 Aarhus C, Denmark", 
-                     "Vædderens Kvarter 10, 2620 Albertslund, Denmark", 
-                     "Lyngevej 198, 3450 Allerød, Denmark", 
-                     "Tobaksgården 7, 5610 Assens, Denmark", 
-                     "Gl. Rådhusvej 13, 2750 Ballerup, Denmark", 
-                     "Hans Jensensvej 6c, 7190 Billund, Denmark", 
-                     "Store Torv 6B, 3700 Rønne, Denmark", 
-                     "Horsedammen 42, 2605 Brøndby, Denmark", 
-                     "Torvegade 5, 9700 Brønderslev, Denmark", 
-                     "Helgolandsgade 24, 7500 Holstebro, Denmark", 
-                     "Kirkevej 9, 2791 Dragør, Denmark", 
-                     "Dronning Dagmars Vej 200, 3650 Ølstykke, Denmark", 
-                     "Islandsgade 50, 6700 Esbjerg, Denmark", 
-                     "Centrumpladsen 6B, 5750 Ringe, Denmark", 
-                     "Evald Tangs Allé 45, 8370 Hadsten, Denmark", 
-                     "Præstevænget 23, 4690 Haslev, Denmark", 
-                     "Holmegårdsvej 101, 2980 Kokkedal, Denmark", 
-                     "Kongensgade 111, 7000 Fredericia, Denmark", 
-                     "Smallegade 12, 2000 Frederiksberg, Denmark", 
-                     "Ved Kirken 5, 3600 Frederikssund, Denmark", 
-                     "Kulturtorvet 12, 3520 Farum, Denmark", 
-                     "Duntzfelts Allé 8, 2900 Hellerup, Denmark", 
-                     "Høje Gladsaxe Torv 4, 2860 Søborg, Denmark", 
-                     "Ved Brandstationen 1, 2600 Glostrup, Denmark", 
-                     "Gersager Alle 1, 2670 Greve, Denmark", 
-                     "Skolegade 43, 3200 Helsinge, Denmark", 
-                     "Skolegade 3C, 4800 Nykøbing Falster, Denmark", 
-                     "Christiansfeldvej 8A, 6100 Haderslev, Denmark", 
-                     "Syrevej 19, 3300 Frederiksværk, Denmark", 
-                     "Stationsparken 1, 7160 Tørring, Denmark", 
-                     "Lundegade 13, 3000 Helsingør, Denmark", 
-                     "Herlev Bygade 30, 2730 Herlev, Denmark", 
-                     "Nørregade 7C, 7400 Herning, Denmark", 
-                     "Nordstensvej 1, 3400 Hillerød, Denmark", 
-                     "Nordbovej 5, 9800 Hjørring, Denmark", 
-                     "Gl. Ringstedvej 32E, 4300 Holbæk, Denmark", 
-                     "Bisgårdmark 16, 7500 Holstebro, Denmark", 
-                     "Skolegade 7, 8700 Horsens, Denmark", 
-                     "Kettegård álle 2, 2650  Hvidovre, Denmark", 
-                     "Taastrupgårdsvej 75, 2630 Taastrup, Denmark", 
-                     "Rungstedvej 1B, 2970 Hørsholm, Denmark", 
-                     "Strøget 47, 7430 Ikast, Denmark", 
-                     "Vejledalen 9, 2635 Ishøj, Denmark", 
-                     "Søparken 2, 9440 Aabybro, Denmark", 
-                     "Skovbrynet 55, 4400 Kalundborg, Denmark", 
-                     "Regnar Langesvej 1, 5300 Kerteminde, Denmark", 
-                     "Riis Toft 12A, 6000 Kolding, Denmark", 
-                     "Staldgade 29, 1699 København V, Denmark", 
-                     "Ved Stadion 1, 4600 Køge, Denmark", 
-                     "H.C. Ørstedvej 10, 5900 Rudkøbing, Denmark", 
-                     "Møllebjergvej 4, 4330 Hvalsø, Denmark", 
-                     "Østergade 10, 7620 Lemvig, Denmark", 
-                     "Østre Landevej 6, 4930 Maribo", 
-                     "Rustenborgvej 3, 2800 Lyngby-Taarbæk, Denmark", 
-                     "Christiansgade 1, 9500 Hobro, Denmark", 
-                     "Søndergade 41, 5500 Middelfart, Denmark", 
-                     "Gasværksvej 60, 7900 Nykøbing Mors, Denmark", 
-                     "Rådhus Allé 98, 9900 Frederikshavn, Denmark", 
-                     "Doktorvejen 2, 9940 Læsø, Denmark", 
-                     "Kærvej 11, 8500 Grenaa, Denmark", 
-                     "Nordmarksvej 2, 5471 Søndersø, Denmark", 
-                     "Provst Hjortsvej 9E, 5800 Nyborg, Denmark", 
-                     "Skellet 29, 4700 Næstved, Denmark", 
-                     "Parkvej 5, 8300 Odder, Denmark", 
-                     "Centervejen 4A, 4550 Asnæs, Denmark", 
-                     "Mariagervej 8, 8900 Randers C, Denmark", 
-                     "Sverriggårdsvej 4, 9520 Skørping, Denmark", 
-                     "Rindumvej 1, 6950 Ringkøbing", 
-                     "Regimentet 3, 4100 Ringsted, Denmark", 
-                     "Kildegården 6, 4000 Roskilde, Denmark", 
-                     "Øverødvej 246B, 2840 Holte, Denmark", 
-                     "Vesterbrogade 107E, 1620 København V, Denmark", 
-                     "Rødovre Parkvej 128, 2610 Rødovre, Denmark", 
-                     "Bindslevs Plads 7, 8600 Silkeborg, Denmark", 
-                     "Søtoften 2A, 8660 Skanderborg, Denmark", 
-                     "Asylgade 5, 7800 Skive, Denmark", 
-                     "Højagervænget 23, 2680 Solrød Strand, Denmark", 
-                     "Rådhusvej 11, 4180 Sorø, Denmark", 
-                     "Egestræde 14, 4660 Store Heddinge, Denmark", 
-                     "Bredgade 6, 7600 Struer, Denmark", 
-                     "Svinget 3, 5700 Svendborg, Denmark", 
-                     "Hovedgaden 10, 8410 Rønde, Denmark", 
-                     "Skovvej 16, 6400 Sønderborg, Denmark", 
-                     "Tingstrupvej 13, 7700 Thisted, Denmark", 
-                     "Nøragersmindevej 90, 2791 Dragør, Denmark", 
-                     "Østergade 63, 6270 Tønder, Denmark", 
-                     "Idræts Allé 7, 2625 Vallensbæk, Denmark", 
-                     "Vestervold 11, 6800 Varde, Denmark", 
-                     "Askovvej 7, 6600 Vejen, Denmark", 
-                     "Ved Sønderåen 1, 7100 Vejle, Denmark", 
-                     "Torvegade 15, 9670 Løgstør, Denmark", 
-                     "Grønnegade 2, 8800 Viborg, Denmark", 
-                     "Sydhavnsvej 6, 4760 Vordingborg, Denmark", 
-                     "Halvejen 24, 5960 Marstal, Denmark", 
-                     "Allehelgensgade 19, 4000 Roskilde, Denmark", 
-                     "Byghøjvej 27, 5250 Odense Sv, Denmark", 
-                     "Vinderød Enghavevej 10, 3300 Frederiksværk, Denmark", 
-                     "Thistedvej 41, 9400 Nørresundby, Denmark", 
-                     "Kompagnistræde 32A, 1208 København K, Denmark", "Studiestræde 3, 4300 Holbæk, Denmark", "Nordre Digevej 6, 2300 København S", "Kastaniehusene 51, 4623 Lille Skensved, Denmark", "Paradisgade 6A, 8000 Aarhus C, Denmark", "Skovalleen 32, 4800 Nykøbing F, Denmark", "Bagergade 40C, 5700 Svendborg, Denmark", "Lindholmsvej 18, 2700 Brønshøj, Denmark", "Krovejen 26, 4571 Grevinge, Denmark", "Rørthvej 191, 8300 Odder, Denmark", "Strandvejen 163, 2900 Hellerup, Denmark", "Danmarksgade 10A, 5000 Odense C, Denmark", "Sct.Pedersgade 18, 4200 Slagelse, Denmark", "Worsaaesvej 19, 1972 Frederiksberg C, Denmark", "Ranunkelvej 11, 6900 Skjern, Denmark", "Kobbelgårdsvej 77, 7000 Fredericia, Denmark", "Herredsvej 14, 6580 Vamdrup, Denmark", "Hellerupvej 11, 2900 Hellerup, Denmark", "Sørby Parkvej 45, 4200 Slagelse, Denmark", "Kirke Værløsevej 36, 3500 Værløse, Denmark", "Stormøllevej 11, 4600 Køge, Denmark", "Vesterbrogade 107E, 1620 København V, Denmark", "Vestergade 9, 6240 Løgumkloster, Denmark", "Nordre Frihavnsgade 17, 2100 København Ø, Denmark", "Rådhuspladsen 2, 9300 Sæby, Denmark", "Jernbanegade 21, 7760 Hurup Thy, Denmark", "Lautrupvej 2, 2750 Ballerup, Denmark", "Hesteskoen 65, 5250 Odense Sv, Denmark", "Skolevej 5, 9990 Skagen, Denmark", "Bogensevej 40, 5450 Otterup, Denmark", "Gl. Skovvej 158, 4420 Regstrup, Denmark", "Edithvej 11, 3660 Stenløse, Denmark", "Tilst Skolevej 28, 8381 Tilst, Denmark", "Langesøvej 58, 5492 Vissenbjerg, Denmark", "Vigerslev Alle 376A, 2650 Hvidovre, Denmark", "Møllestræde 9, 3400 Hillerød, Denmark", "Brogårdsvej 61, 2820 Gentofte, Denmark", "Molsvej 80B, 8410 Rønde, Denmark", "Rosenvængets Allé 22, 2100 København Ø", "Mosebuen 1, 2820 Gentofte, Denmark", "Strandvejen 102, 8000 Aarhus C, Denmark", "Svendborgvej 319, 5260 Odense S, Denmark", "Engvænget 22, 6650 Brørup, Denmark", "Banegårdspladsen 10, 8000 Aarhus C, Denmark", "Skolevænget 33, 6200 Aabenraa, Denmark", "Vestergade 20, 6500 Vojens, Denmark", "Kalundborgvej 49, 4591 Føllenslev, Denmark", "Nyvej 7B, 4050 Skibby, Denmark", "Gartnerivej 3, 2100 København Ø, Denmark", "Bygvænget 2, 5762 Vester Skerninge, Denmark", "Herredsvej 192, 4944 Fejø, Denmark", "Storardenvej 22, 9510 Arden, Denmark", "Bosholmvej 5, 6261 Bredebro, Denmark", "Vikingvej 4, 9560 Hadsund, Denmark", "Overvejen 54, 5792 Årslev, Denmark", "Blegdamsvej 128, 2100 København Ø, Denmark", "Skovvej 2, 5672 Broby, Denmark", "Grønnegade 44, 5600 Faaborg, Denmark", "Rodosvej 47, 2300 København S, Denmark", "Mariedalsvej 10, 8220 Brabrand, Denmark", "Havevej 8, 6780 Skærbæk, Denmark", "Velhustedvej 8, 6933 Kibæk, Denmark")
-
-music_schools <- data.frame(
-  name = names_schools,
-  address = address_schools
-)
-
-
-# Geocode using OpenStreetMap
-geocoded_schools <- music_schools %>%
-  geocode(address = address, method = 'osm', lat = latitude, long = longitude)
-
-# Manually set the latitude and longitude for a schools that didn't geocode correctly
-geocoded_schools$latitude[geocoded_schools$name == "Fejø Musikskole"] <- 54.945614
-geocoded_schools$longitude[geocoded_schools$name == "Fejø Musikskole"] <- 11.415638
-
-geocoded_schools$latitude[geocoded_schools$name == "Odense Musikskole"] <- 55.400616
-geocoded_schools$longitude[geocoded_schools$name == "Odense Musikskole"] <- 10.399197
-  
-geocoded_schools$latitude[geocoded_schools$name == "Slagelse Musikskole og MGK"] <- 55.403719
-geocoded_schools$longitude[geocoded_schools$name == "Slagelse Musikskole og MGK"] <- 11.344854 
-
+geocoded_schools <- readRDS("music_schools_geocoded.rds")
 
 ```
 
@@ -264,16 +61,12 @@ dk_admin <- sf::st_as_sf(dk_admin)
 # Convert geocoded schools to spatial object (sf)
 geocoded_sf <- st_as_sf(geocoded_schools, coords = c("longitude", "latitude"), crs = 4326)
 
-#dk_pop_mun <- dk_admin %>%
-#  left_join(population_summary, by = c("NAME_2" = "Municipality"))
 ```
 
 
 ```{r}
 library(ggplot2)
-install.packages("ggspatial")
 library(ggspatial)
-
 
 ggplot() +
   geom_sf(data = dk_admin, fill = "white", color = "gray40") +
@@ -342,12 +135,34 @@ dk_students_pop <- dk_students_pop %>%
 ggplot() +
   geom_sf(data = dk_students_pop, aes(fill = students_per_1000), color = "white") +
   scale_fill_viridis_c(option = "plasma", na.value = "grey90", name = "Number of Students") +
-  geom_sf(data = geocoded_sf, color = "black", size = 1.5, alpha = 0.5) +
+  geom_sf(data = geocoded_sf, color = "black", size = 1, alpha = 0.5) +
   theme_minimal() +
+  annotation_scale(location = "br", width_hint = 0.25, text_cex = 0.8) +   # Scale bar
+  annotation_north_arrow(location = "tr", which_north = "true",
+                         style = north_arrow_fancy_orienteering) +        # Compass
   labs(title = "Number of Students per 1000 Inhabitants for Municipalities in Denmark",
        subtitle = "With Music School Locations",
        fill = "Students")
 ```
+
+
+```{r}
+library(dplyr)
+
+# Join population data to spatial object
+municipalities_joined <- dk_admin %>%
+  left_join(population, by = c("NAME_2" = "Municipality"))
+
+# Then plot a choropleth map:
+ggplot(municipalities_joined) +
+  geom_sf(aes(fill = Population)) +
+  scale_fill_viridis_c() +
+  labs(title = "Population Distribution by Municipality",
+       fill = "Population") +
+  theme_minimal()
+```
+
+
 
 
 ## Newspapers research
@@ -357,6 +172,8 @@ library(tidyverse)
 
 newspapers <- read_csv("https://labs.statsbiblioteket.dk/labsapi/api/aviser/export/fields?query=musikskole%20AND%20py%3A%5B1800%20TO%201900%5D&fields=link&fields=recordID&fields=timestamp&fields=pwa&fields=cer&fields=fulltext_org&fields=pageUUID&fields=editionUUID&fields=titleUUID&fields=editionId&fields=familyId&fields=newspaper_page&fields=newspaper_edition&fields=lplace&fields=location_name&fields=location_coordinates&max=1600&structure=comments&structure=header&structure=content&format=CSV", skip = 6)
 
+saveRDS(newspapers, "newspapers.rds")
+
 #location_name: Location names extracted from the text (low quality entity recognition).
 ```
 
@@ -365,7 +182,7 @@ newspapers <- read_csv("https://labs.statsbiblioteket.dk/labsapi/api/aviser/expo
 library(tidyverse)
 library(sf)
 
-# Sample: one row from your dataframe
+#Split locations into multiple points
 newspapers <- newspapers %>%
   mutate(
     coord_list = str_split(location_coordinates, "\\\\n")
@@ -390,6 +207,9 @@ ggplot() +
   geom_sf(data = newspapers, aes(color = year), alpha = 0.3, size = 1.5) +
   scale_color_viridis_c(option = "plasma") +
   theme_minimal() +
+  annotation_scale(location = "br", width_hint = 0.25, text_cex = 0.8) +   # Scale bar
+  annotation_north_arrow(location = "tr", which_north = "true",
+                         style = north_arrow_fancy_orienteering) +        # Compass
   labs(title = "Mentions of 'Musikskole' in Historical Newspapers",
        subtitle = "Geocoded mentions by year",
        color = "Year")
@@ -419,7 +239,11 @@ ggplot() +
   scale_fill_viridis_c() +
   coord_sf() +
   labs(title = "Density of 'Musikskole' Mentions") +
-  theme_minimal()
+  theme_minimal() +
+  annotation_scale(location = "br", width_hint = 0.25, text_cex = 0.8) +   # Scale bar
+  annotation_north_arrow(location = "tr", which_north = "true",
+                         style = north_arrow_fancy_orienteering)        # Compass
+  
 ```
 
 
@@ -438,7 +262,11 @@ ggplot() +
   scale_fill_viridis_c() +
   coord_sf() +
   labs(title = "Density of 'Musikskole' Mentions") +
-  theme_minimal()
+  theme_minimal() +
+  annotation_scale(location = "br", width_hint = 0.25, text_cex = 0.8) +   # Scale bar
+  annotation_north_arrow(location = "tr", which_north = "true",
+                         style = north_arrow_fancy_orienteering)        # Compass
+  
 
 ```
 
@@ -478,27 +306,7 @@ anim_save("music_school_density.gif")
 ```
 
 
-## Static plot - faceted by decade
-
-```{r}
-density_data <- density_data %>%
-  mutate(decade = floor(year / 10) * 10)
-
-ggplot() +
-  geom_sf(data = dk_admin_transformed, fill = "white", color = "black") +
-  stat_density_2d(
-    data = density_data,
-    aes(X, Y, fill = after_stat(level)),
-    geom = "polygon", alpha = 0.5
-  ) +
-  scale_fill_viridis_c() +
-  coord_sf() +
-  facet_wrap(~ decade) +
-  labs(title = "Density of 'Musikskole' Mentions by Decade") +
-  theme_minimal()
-```
-
-### Interactive Map to see mentions of 'musikskole' (red) per decade vs modern music schools (blue)
+### Interactive Map to see mentions of 'musikskole' (black) per decade vs modern music schools (orange)
 
 
 ```{r}
@@ -554,6 +362,7 @@ map
 
 
 ```{r}
+
 # Spatial join to municipalities
 newspapers_joined <- st_join(newspapers, dk_admin)
 
@@ -568,7 +377,7 @@ kommuner_count <- dk_admin %>%
 # Plot
 ggplot(kommuner_count) +
   geom_sf(aes(fill = n), color = "grey60") +
-  scale_fill_viridis_c(option = "inferno", na.value = "grey") +
+  scale_fill_viridis_c(option = "inferno", na.value = "grey80") +
   theme_minimal() +
   labs(
     title = "Mentions of 'Musikskole' per Municipality",
@@ -601,54 +410,10 @@ newspapers_transformed$distance_to_school <- as.numeric(distances)
 library(ggplot2)
 
 ggplot(newspapers_transformed, aes(x = distance_to_school)) +
-  geom_histogram(bins = 30, fill = "#3182bd", color = "white") +
+  geom_histogram(bins = 30, fill = "royalblue1", color = "white") +
   labs(title = "Distance from Newspaper Mentions to Nearest Music School",
        x = "Distance (m)", y = "Count") +
   theme_minimal()
-
-```
-
-
-### Hotspot / cluster analysis
-
-```{r}
-#newspapers <- st_transform(newspapers, crs = 4326)
-#geocoded_sf <- st_transform(geocoded_sf, crs = 4326)
-
-ggplot() +
-  geom_sf(data = dk_admin, fill = "white") +
-  stat_density_2d(data = st_coordinates(newspapers) %>%
-                    as.data.frame() %>%
-                    bind_cols(decade = newspapers$decade),
-                  aes(X, Y, fill = after_stat(level)),
-                  geom = "polygon", alpha = 0.5) +
-  scale_fill_viridis_c() +
-  facet_wrap(~ decade) +
-  coord_sf() +
-  labs(title = "Hotspots of 'Musikskole' Mentions by Decade") +
-  theme_minimal()
-
-```
-
-
-```{r}
-
-# Extract coordinates in meters
-coords <- st_coordinates(newspapers_transformed)
-
-# Rerun DBSCAN — now eps is in meters!
-db <- dbscan(coords, eps = 8000, minPts = 5)  # 5 km radius
-
-# 4. Add cluster labels
-newspapers_transformed$cluster <- factor(db$cluster)
-
-
-ggplot() +
-  geom_sf(data = dk_admin_transformed, fill = NA, color = "black") +
-  geom_sf(data = newspapers_transformed, aes(color = cluster), size = 0.8, alpha = 0.6) +
-  scale_color_viridis_d(option = "C") +
-  theme_minimal() +
-  labs(title = "Clusters of Newspaper Mentions Using DBSCAN")
 
 ```
 
@@ -665,7 +430,7 @@ nb <- knn2nb(knearneigh(coords_sp, k = 5))
 lw <- nb2listw(nb, style = "W")
 
 # Global Moran's I
-moran.test(newspapers$distance_to_school, lw)
+moran.test(newspapers_transformed$distance_to_school, lw)
 
 ```
 
@@ -723,13 +488,65 @@ The p-value < 0.05, which suggests that mentions of 'musikskole' in danish newsp
 
 
 
+```{r}
+set.seed(8)
+n_sim <- 1000
+n_random <- nrow(newspapers_proj)
+
+median_dists <- numeric(n_sim)
+
+for (i in 1:n_sim) {
+  random_points <- st_sample(dk_proj, size = n_random, type = "random") %>% st_as_sf()
+  dist_random <- st_distance(random_points, geocoded_proj)
+  min_dists <- apply(dist_random, 1, min)
+  median_dists[i] <- median(min_dists)
+}
+
+# Now compare:
+real_median <- median(min_dist_mentions)
+
+# Plot
+ggplot(data.frame(median_dists = median_dists), aes(x = median_dists / 1000)) +
+  geom_histogram(bins = 30, fill = "royalblue1", color = "white") +
+  geom_vline(xintercept = real_median / 1000, color = "red", linetype = "dashed") +
+  labs(title = "Monte Carlo Simulation of Median Distances",
+       x = "Median Distance to Nearest Music School (km)", y = "Frequency") +
+  theme_minimal()
+
+```
+
+```{r}
+results <- mean(median_dists <= real_median)
+results
+```
 
 
 
-#---------------------------------------------------------------------------------
+
 
 ## Hotspot Analysis
 
+### Hotspots faceted by decade
+```{r}
+newspapers <- st_transform(newspapers, crs = 4326)
+geocoded_sf <- st_transform(geocoded_sf, crs = 4326)
+
+ggplot() +
+  geom_sf(data = dk_admin, fill = "white") +
+  stat_density_2d(data = st_coordinates(newspapers) %>%
+                    as.data.frame() %>%
+                    bind_cols(decade = newspapers$decade),
+                  aes(X, Y, fill = after_stat(level)),
+                  geom = "polygon", alpha = 0.5) +
+  scale_fill_viridis_c() +
+  facet_wrap(~ decade) +
+  coord_sf() +
+  labs(title = "Hotspots of 'Musikskole' Mentions by Decade") +
+  theme_minimal()
+
+```
+
+### Gi*
 
 ```{r}
 library(sf)
@@ -738,10 +555,10 @@ library(tidyverse)
 library(tmap)
 #newspapers_proj <- st_transform(newspapers, 25832)
 
-# Create a grid (e.g., 10km hexagons)
+# Create a grid
 grid <- st_make_grid(
   newspapers_proj,
-  cellsize = 8000,  # 10 km
+  cellsize = 8000,  # 8 km
   square = FALSE     # hexagonal grid
 ) %>% st_sf()
 
@@ -760,8 +577,8 @@ mention_counts <- grid_mentions %>%
 grid <- st_join(grid, mention_counts, by = "grid_id")
 grid$count[is.na(grid$count)] <- 0
 
-# Create neighbor list from polygons (e.g., queen’s case adjacency)
-nb <- poly2nb(grid)  # or use distance-based with dnearneigh()
+# Create neighbor list from polygons
+nb <- poly2nb(grid)  
 
 # Convert to spatial weights
 lw <- nb2listw(nb, style = "W", zero.policy = TRUE)
@@ -788,23 +605,23 @@ tm_shape(grid) +
 
 
 ```{r}
-# Step 1: Add grid_id if not already done
+# Add grid_id
 grid$grid_id <- 1:nrow(grid)
 
-# Step 2: Convert schools to sf
+# Convert schools to sf
 schools_sf <- st_as_sf(geocoded_schools, coords = c("longitude", "latitude"), crs = 4326)
 schools_sf <- st_transform(schools_sf, st_crs(grid))
 
-# Step 3: Assign each school to a grid cell
+# Assign each school to a grid cell
 grid_schools <- st_join(schools_sf, grid, join = st_within)
 
-# Step 4: Count schools per grid cell
+# Count schools per grid cell
 school_counts <- grid_schools %>%
   st_drop_geometry() %>%
   group_by(grid_id) %>%
   summarise(schools_count = n())
 
-# Step 5: Merge counts back to grid
+# Merge counts back to grid
 grid <- left_join(grid, school_counts, by = "grid_id")
 grid$schools_count[is.na(grid$schools_count)] <- 0
 
@@ -819,6 +636,7 @@ cor.test(grid$count, grid$schools_count, method = "spearman")
 # Use spatial weights from earlier
 moran.test(grid$schools_count, listw = lw)
 ```
+
 
 
 
