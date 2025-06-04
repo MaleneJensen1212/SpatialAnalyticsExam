@@ -42,7 +42,7 @@ newspapers_4326$year <- lubridate::year(newspapers_4326$timestamp)
 schools_4326 <- st_as_sf(schools, coords = c("longitude", "latitude"), crs = 4326)
 ```
 
-
+## Interactive Map
 ```{r}
 leaflet() %>%
   addProviderTiles(providers$CartoDB.Positron) %>%
@@ -53,11 +53,13 @@ leaflet() %>%
              label = "Newspaper Mentions of 'Musikskole'",
              group = "Mentions") %>%
   
-  # Mentions as heatmap (optional alternative or extra layer)
-  # Uncomment this section if you want a density heatmap instead
+  # Mentions as heatmap
    leaflet.extras::addHeatmap(data = newspapers_4326, 
-                              intensity = 1, blur = 20, max = 0.05,
-                               radius = 15, group = "Mention Density") %>%
+                              intensity = 1, 
+                              blur = 20, 
+                              max = 0.05,
+                              radius = 15, 
+                              group = "Mention Density") %>%
   
   # Music schools
   addCircleMarkers(data = schools_4326,
@@ -70,7 +72,7 @@ leaflet() %>%
   
   # Layer controls
   addLayersControl(
-    overlayGroups = c("Mentions", "Schools"),
+    overlayGroups = c("Mentions", "Mention Density", "Schools"),
     options = layersControlOptions(collapsed = FALSE)
   )
 
