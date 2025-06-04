@@ -1,0 +1,85 @@
+---
+title: "Interactive Map"
+author: "Malene"
+date: "2025-06-04"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(leaflet)
+library(leaflet.extras)
+library(sf)
+library(dplyr)
+library(htmltools)
+```
+
+# Load Data
+
+```{r}
+schools <- readRDS("music_schools_geocoded.rds")
+  
+newspapers <- readRDS("newspapers.rds")
+```
+
+## Project data
+
+```{r}
+# Historical mentions
+#Split locations into multiple points
+newspapers_4326 <- newspapers %>%
+  mutate(
+    coord_list = str_split(location_coordinates, "\\\\n")
+  ) %>%
+  unnest(coord_list) %>%
+  separate(coord_list, into = c("lon", "lat"), sep = ",", convert = TRUE) %>%
+  filter(!is.na(lon) & !is.na(lat)) %>%
+  st_as_sf(coords = c("lon", "lat"), crs = 4326)
+
+newspapers_4326$year <- lubridate::year(newspapers_4326$timestamp)
+
+
+# Modern schools
+schools_4326 <- st_as_sf(schools, coords = c("longitude", "latitude"), crs = 4326)
+```
+
+
+```{r}
+leaflet() %>%
+  addProviderTiles(providers$CartoDB.Positron) %>%
+  
+  # Mentions as clustered markers
+  addMarkers(data = newspapers_4326,
+             clusterOptions = markerClusterOptions(),
+             label = "Newspaper Mentions of 'Musikskole'",
+             group = "Mentions") %>%
+  
+  # Mentions as heatmap (optional alternative or extra layer)
+  # Uncomment this section if you want a density heatmap instead
+   leaflet.extras::addHeatmap(data = newspapers_4326, 
+                              intensity = 1, blur = 20, max = 0.05,
+                               radius = 15, group = "Mention Density") %>%
+  
+  # Music schools
+  addCircleMarkers(data = schools_4326,
+                   radius = 3,
+                   label = ~name,
+                   color = "black",
+                   fill = TRUE,
+                   fillOpacity = 0.6,
+                   group = "Schools") %>%
+  
+  # Layer controls
+  addLayersControl(
+    overlayGroups = c("Mentions", "Schools"),
+    options = layersControlOptions(collapsed = FALSE)
+  )
+
+```
+
+
+
+
+
+
+
+
