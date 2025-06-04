@@ -1,0 +1,625 @@
+---
+title: "Spatial_exam"
+author: "Malene"
+date: "2025-05-26"
+output: html_document
+---
+
+## Loading in data
+```{r}
+library(readxl)
+```
+
+```{r}
+population <- read_excel("FOLK1AM.xlsx", skip = 2)
+
+#12. måned 2024
+colnames(population) <- c("In total", "Municipality", "Population")
+```
+
+
+```{r}
+
+students <- read_excel("SKOLM02B.xlsx", skip = 2)
+
+#2023:2024
+colnames(students) <- c("In total", "Municipality", "N_Students")
+```
+
+
+```{r}
+library(tidygeocoder)
+library(tidyverse)
+library(dplyr)
+library(osmdata)
+library(sf)
+
+geocoded_schools <- readRDS("music_schools_geocoded.rds")
+
+```
+
+
+## Loading the shape of Denmark and its municipalities
+
+```{r}
+library(raster)
+library(geodata)
+
+dk_admin <- gadm(country = "DNK", path = ".", level = 2) # Level 2 = municipalities
+
+dk_admin$NAME_2[31] <- "Aarhus"
+dk_admin$NAME_2[60] <- "Vesthimmerlands"
+```
+
+
+
+## Visualizing the schools and municipalities
+
+```{r}
+dk_admin <- sf::st_as_sf(dk_admin)
+
+# Convert geocoded schools to spatial object (sf)
+schools_4326 <- st_as_sf(geocoded_schools, coords = c("longitude", "latitude"), crs = 4326) #geocoded_sf
+
+```
+
+
+```{r}
+library(ggplot2)
+library(ggspatial)
+
+ggplot() +
+  geom_sf(data = dk_admin, fill = "white", color = "gray40") +
+  geom_sf(data = schools_4326, color = "royalblue1", size = 1.5, alpha = 0.7) +
+  theme_minimal() +
+  annotation_scale(location = "br", width_hint = 0.25, text_cex = 0.8) +   # Scale bar
+  annotation_north_arrow(location = "tr", which_north = "true",
+                         style = north_arrow_fancy_orienteering) +        # Compass
+  labs(title = "Music Schools in Denmark", subtitle = "Overlaid on Municipal Boundaries")
+```
+
+
+## Plotting number of students and music schools
+
+```{r}
+students$Municipality[14] <- "Høje Taastrup"
+population$Municipality[13] <- "Høje Taastrup"
+
+#Joining dataframes students and dk_admin
+dk_students <- dk_admin %>%
+  left_join(students, by = c("NAME_2" = "Municipality"))
+
+dk_students_pop <- dk_students %>% 
+  left_join(population, by = c("NAME_2" = "Municipality"))
+```
+
+
+```{r}
+ggplot() +
+  geom_sf(data = dk_students, aes(fill = N_Students), color = "white") +
+  scale_fill_viridis_c(option = "plasma", na.value = "grey90", name = "Number of Students") +
+  geom_sf(data = schools_4326, color = "black", size = 1.5, alpha = 0.4) +
+  theme_minimal() +
+  labs(title = "Number of Students per Municipality in Denmark",
+       subtitle = "With Music School Locations",
+       fill = "Students")
+```
+
+
+### Interactive Mapping
+
+```{r}
+library(leaflet)
+
+leaflet() %>%
+  addProviderTiles("CartoDB.Positron") %>%
+  addPolygons(data = dk_students,
+              fillColor = ~colorNumeric("plasma", N_Students)(N_Students),
+              color = "#444444", weight = 1, smoothFactor = 0.5,
+              opacity = 1.0, fillOpacity = 0.7,
+              popup = ~paste0(NAME_2, ": ", N_Students, " students")) %>%
+  addCircleMarkers(data = schools_4326,
+                   radius = 5, color = "firebrick",
+                   label = ~name,
+                   popup = ~paste0(name, "<br>", address))
+```
+
+
+### Relative number of students and municipalities
+
+```{r}
+dk_students_pop <- dk_students_pop %>%
+  mutate(students_per_1000 = (N_Students / Population) * 1000)
+
+
+ggplot() +
+  geom_sf(data = dk_students_pop, aes(fill = students_per_1000), color = "white") +
+  scale_fill_viridis_c(option = "plasma", na.value = "grey90", name = "Number of Students") +
+  geom_sf(data = schools_4326, color = "black", size = 1, alpha = 0.5) +
+  theme_minimal() +
+  annotation_scale(location = "br", width_hint = 0.25, text_cex = 0.8) +   # Scale bar
+  annotation_north_arrow(location = "tr", which_north = "true",
+                         style = north_arrow_fancy_orienteering) +        # Compass
+  labs(title = "Number of Students per 1000 Inhabitants for Municipalities in Denmark",
+       subtitle = "With Music School Locations",
+       fill = "Students")
+```
+
+
+```{r}
+library(dplyr)
+
+# Join population data to spatial object
+municipalities_joined <- dk_admin %>%
+  left_join(population, by = c("NAME_2" = "Municipality"))
+
+# Then plot a choropleth map:
+ggplot(municipalities_joined) +
+  geom_sf(aes(fill = Population)) +
+  scale_fill_viridis_c() +
+  labs(title = "Population Distribution by Municipality",
+       fill = "Population") +
+  theme_minimal()
+```
+
+
+
+
+## Newspapers research
+
+```{r}
+library(tidyverse)
+
+#Uncomment if you need to save a new dataset:
+
+#newspapers <- read_csv("https://labs.statsbiblioteket.dk/labsapi/api/aviser/export/fields?query=musikskole%20AND%20py%3A%5B1800%20TO%201900%5D&fields=link&fields=recordID&fields=timestamp&fields=pwa&fields=cer&fields=fulltext_org&fields=pageUUID&fields=editionUUID&fields=titleUUID&fields=editionId&fields=familyId&fields=newspaper_page&fields=newspaper_edition&fields=lplace&fields=location_name&fields=location_coordinates&max=1600&structure=comments&structure=header&structure=content&format=CSV", skip = 6)
+
+#saveRDS(newspapers, "newspapers.rds")
+
+newspapers <- readRDS("newspapers.rds")
+
+```
+
+
+```{r}
+library(tidyverse)
+library(sf)
+
+#Split locations into multiple points
+newspapers_4326 <- newspapers %>%
+  mutate(
+    coord_list = str_split(location_coordinates, "\\\\n")
+  ) %>%
+  unnest(coord_list) %>%
+  separate(coord_list, into = c("lon", "lat"), sep = ",", convert = TRUE) %>%
+  filter(!is.na(lon) & !is.na(lat)) %>%
+  st_as_sf(coords = c("lon", "lat"), crs = 4326)
+
+newspapers_4326$year <- lubridate::year(newspapers_4326$timestamp)
+
+newspapers_4326 <- newspapers_4326 %>%
+  filter(str_detect(tolower(fulltext_org), "musikskole"))
+
+```
+
+
+```{r}
+
+ggplot() +
+  geom_sf(data = dk_admin, fill = "white", color = "gray70") +
+  geom_sf(data = newspapers_4326, aes(color = year), alpha = 0.3, size = 1.5) +
+  scale_color_viridis_c(option = "plasma") +
+  theme_minimal() +
+  annotation_scale(location = "br", width_hint = 0.25, text_cex = 0.8) +   # Scale bar
+  annotation_north_arrow(location = "tr", which_north = "true",
+                         style = north_arrow_fancy_orienteering) +        # Compass
+  labs(title = "Mentions of 'Musikskole' in Historical Newspapers",
+       subtitle = "Geocoded mentions by year",
+       color = "Year")
+```
+
+
+```{r}
+newspapers_4326 %>%
+  count(year) %>%
+  ggplot(aes(x = year, y = n)) +
+  geom_line() +
+  geom_point() +
+  theme_minimal() +
+  labs(title = "Frequency of 'Musikskole' Mentions Over Time",
+       x = "Year", y = "Number of Mentions")
+```
+
+
+```{r}
+library(ggspatial)
+
+ggplot() +
+  geom_sf(data = dk_admin, fill = "white", color = "black") +
+  stat_density_2d(data = st_coordinates(newspapers_4326) %>% as.data.frame(),
+                  aes(X, Y, fill = after_stat(level)),
+                  geom = "polygon", alpha = 0.5) +
+  scale_fill_viridis_c() +
+  coord_sf() +
+  labs(title = "Density of 'Musikskole' Mentions") +
+  theme_minimal() +
+  annotation_scale(location = "br", width_hint = 0.25, text_cex = 0.8) +   # Scale bar
+  annotation_north_arrow(location = "tr", which_north = "true",
+                         style = north_arrow_fancy_orienteering)        # Compass
+  
+```
+
+
+```{r}
+# Add a decade column
+newspapers_4326$decade <- floor(newspapers_4326$year / 10) * 10
+
+newspapers_25832 <- st_transform(newspapers_4326, 25832)  # UTM zone 32N for Denmark # newspapers_transformed
+
+ggplot() +
+  geom_sf(data = dk_admin, fill = "white", color = "black") +
+  stat_density_2d(data = st_coordinates(newspapers_4326) %>% as.data.frame(),
+                  aes(X, Y, fill = after_stat(level)),
+                  geom = "polygon", alpha = 0.5) +
+  geom_sf(data = schools_4326, color = "black", size = 2) +
+  scale_fill_viridis_c() +
+  coord_sf() +
+  labs(title = "Density of 'Musikskole' Mentions") +
+  theme_minimal() +
+  annotation_scale(location = "br", width_hint = 0.25, text_cex = 0.8) +   # Scale bar
+  annotation_north_arrow(location = "tr", which_north = "true",
+                         style = north_arrow_fancy_orienteering)        # Compass
+  
+
+```
+
+
+## Temporal map
+
+```{r}
+library(gganimate)
+
+# Reproject to appropriate CRS for spatial density (e.g., UTM)
+newspapers_transformed <- st_transform(newspapers_4326, 25832)
+dk_admin_transformed <- st_transform(dk_admin, 25832)
+
+# Convert coordinates to data frame with year
+density_data <- st_coordinates(newspapers_transformed) %>%
+  as.data.frame() %>%
+  mutate(year = newspapers_transformed$year)
+
+# Plot with animation by year
+p <- ggplot() +
+  geom_sf(data = dk_admin_transformed, fill = "white", color = "black") +
+  stat_density_2d(
+    data = density_data,
+    aes(X, Y, fill = after_stat(level)),
+    geom = "polygon", alpha = 0.4, contour = TRUE
+  ) +
+  scale_fill_viridis_c() +
+  coord_sf() +
+  labs(title = "Density of 'Musikskole' Mentions", subtitle = "Year: {closest_state}") +
+  theme_minimal() +
+  transition_states(year, transition_length = 3, state_length = 5) +
+  ease_aes('linear')
+
+gganimate::animate(p, width = 800, height = 600, fps = 5)
+
+anim_save("music_school_density.gif")
+```
+
+
+### Interactive Map to see mentions of 'musikskole' (black) per decade vs modern music schools (orange)
+
+
+```{r}
+# Libraries
+library(leaflet)
+library(dplyr)
+library(sf)
+library(lubridate)
+
+# Base leaflet map
+map <- leaflet() %>%
+  addTiles()
+
+# Add schools layer
+map <- map %>%
+  addCircleMarkers(data = schools_4326,
+                   radius = 2,
+                   color = "black",
+                   fillOpacity = 0.7,
+                   popup = ~name)  
+
+# Add newspaper markers by decade
+for (decade in sort(unique(newspapers_4326$decade))) {
+  decade_data <- newspapers_4326 %>% filter(decade == !!decade)
+
+  map <- map %>%
+    addCircleMarkers(
+      data = decade_data,
+      radius = 2,
+      color = "orange",
+      fillOpacity = 0.2,
+      group = paste0("Newspapers ", decade),
+      popup = ~paste("Year:", year)
+    )
+}
+
+# Add layer control to toggle decades
+map <- map %>%
+  addLayersControl(
+    overlayGroups = paste0("Newspapers ", sort(unique(newspapers_4326$decade))),
+    options = layersControlOptions(collapsed = FALSE)
+  )
+
+# Display map
+map
+
+```
+
+
+
+
+```{r}
+
+# Spatial join to municipalities
+newspapers_joined <- st_join(newspapers_4326, dk_admin)
+
+mention_counts <- newspapers_joined %>%
+  st_drop_geometry() %>%
+  count(NAME_2)
+
+# Join count data back to geometry for plotting
+kommuner_count <- dk_admin %>%
+  left_join(mention_counts, by = "NAME_2")
+
+# Plot
+ggplot(kommuner_count) +
+  geom_sf(aes(fill = n), color = "grey60") +
+  scale_fill_viridis_c(option = "inferno", na.value = "grey80") +
+  theme_minimal() +
+  labs(
+    title = "Mentions of 'Musikskole' per Municipality",
+    fill = "Mentions"
+  )
+
+```
+
+
+## Statistical Analysis
+
+### Proximity Analysis
+
+```{r}
+schools_transformed <- st_transform(schools_4326, crs = 25832) #geocoded_sf_transformed
+
+# Calculate nearest school for each newspaper mention
+nearest_index <- st_nearest_feature(newspapers_transformed, schools_transformed)
+
+# Get distance (in meters)
+distances <- st_distance(newspapers_transformed, schools_transformed[nearest_index, ], by_element = TRUE)
+
+# Add distance as a column
+newspapers_transformed$distance_to_school <- as.numeric(distances)
+
+```
+
+
+```{r}
+library(ggplot2)
+
+ggplot(newspapers_transformed, aes(x = distance_to_school)) +
+  geom_histogram(bins = 30, fill = "royalblue1", color = "white") +
+  labs(title = "Distance from Newspaper Mentions to Nearest Music School",
+       x = "Distance (m)", y = "Count") +
+  theme_minimal()
+
+```
+
+
+
+### Spatial Autocorrelation
+
+```{r}
+library(spdep)
+
+# Create spatial weights
+coords_sp <- as_Spatial(newspapers_transformed)
+nb <- knn2nb(knearneigh(coords_sp, k = 5))
+lw <- nb2listw(nb, style = "W")
+
+# Global Moran's I
+moran.test(newspapers_transformed$distance_to_school, lw)
+
+```
+
+
+### Monte Carlo - Are the newspapers closer to the music schools than by chance?
+
+```{r}
+dist_mentions <- st_distance(newspapers_transformed, schools_transformed)
+min_dist_mentions <- apply(dist_mentions, 1, min)  # shortest distance per mention
+```
+
+```{r}
+set.seed(8)
+n_random <- nrow(newspapers_transformed)  # same number as mentions
+
+random_points <- st_sample(dk_admin_transformed, size = n_random, type = "random")
+random_points <- st_as_sf(random_points)
+```
+
+```{r}
+dist_random <- st_distance(random_points, schools_transformed)
+min_dist_random <- apply(dist_random, 1, min)
+```
+
+```{r}
+library(ggplot2)
+
+df <- data.frame(
+  distance = c(as.numeric(min_dist_mentions), as.numeric(min_dist_random)),
+  group = rep(c("Mentions", "Random"), each = n_random)
+)
+
+ggplot(df, aes(x = distance / 1000, fill = group)) +  # convert to km
+  geom_density(alpha = 0.5) +
+  labs(title = "Distance to Nearest Music School",
+       x = "Distance (km)", y = "Density") +
+  theme_minimal()
+
+```
+
+```{r}
+wilcox.test(min_dist_mentions, min_dist_random)
+```
+
+The p-value < 0.05, which suggests that mentions of 'musikskole' in danish newspapers are closer to the music schools than by chance. 
+
+
+```{r}
+set.seed(8)
+n_sim <- 1000
+n_random <- nrow(newspapers_transformed)
+
+median_dists <- numeric(n_sim)
+
+for (i in 1:n_sim) {
+  random_points <- st_sample(dk_admin_transformed, size = n_random, type = "random") %>% st_as_sf()
+  dist_random <- st_distance(random_points, schools_transformed)
+  min_dists <- apply(dist_random, 1, min)
+  median_dists[i] <- median(min_dists)
+}
+
+# Now compare:
+real_median <- median(min_dist_mentions)
+
+# Plot
+ggplot(data.frame(median_dists = median_dists), aes(x = median_dists / 1000)) +
+  geom_histogram(bins = 30, fill = "royalblue1", color = "white") +
+  geom_vline(xintercept = real_median / 1000, color = "red", linetype = "dashed") +
+  labs(title = "Monte Carlo Simulation of Median Distances",
+       x = "Median Distance to Nearest Music School (km)", y = "Frequency") +
+  theme_minimal()
+
+```
+
+
+
+
+
+## Hotspot Analysis
+
+### Hotspots faceted by decade
+```{r}
+
+ggplot() +
+  geom_sf(data = dk_admin, fill = "white") +
+  stat_density_2d(data = st_coordinates(newspapers_4326) %>%
+                    as.data.frame() %>%
+                    bind_cols(decade = newspapers_4326$decade),
+                  aes(X, Y, fill = after_stat(level)),
+                  geom = "polygon", alpha = 0.5) +
+  scale_fill_viridis_c() +
+  facet_wrap(~ decade) +
+  coord_sf() +
+  labs(title = "Hotspots of 'Musikskole' Mentions by Decade") +
+  theme_minimal()
+
+```
+
+### Gi*
+
+```{r}
+library(sf)
+library(spdep)
+library(tidyverse)
+library(tmap)
+
+# Create a grid
+grid <- st_make_grid(
+  newspapers_transformed,
+  cellsize = 8000,  # 8 km
+  square = FALSE     # hexagonal grid
+) %>% st_sf()
+
+# Add ID
+grid$grid_id <- 1:nrow(grid)
+
+# Spatial join to count mentions per grid
+grid_mentions <- st_join(grid, newspapers_transformed, join = st_contains)
+
+# Count number of mentions per grid cell
+mention_counts <- grid_mentions %>%
+  group_by(grid_id) %>%
+  summarise(count = n())
+
+# Merge count back with original grid
+grid <- st_join(grid, mention_counts, by = "grid_id")
+grid$count[is.na(grid$count)] <- 0
+
+# Create neighbor list from polygons
+nb <- poly2nb(grid)  
+
+# Convert to spatial weights
+lw <- nb2listw(nb, style = "W", zero.policy = TRUE)
+
+# Run Gi* statistic on mention count
+gi_star <- localG(grid$count, lw, zero.policy = TRUE)
+
+# Add the result to the grid
+grid$gi_star <- as.numeric(gi_star)
+
+library(tmap)
+
+tmap_mode("view")
+
+tm_shape(grid) +
+  tm_polygons("gi_star",
+              palette = "-RdBu",
+              style = "quantile",
+              title = "Gi* Hotspot Score") +
+  tm_layout(title = "Hotspot Analysis of 'musikskole' Mentions")
+
+
+```
+
+
+```{r}
+# Add grid_id
+grid$grid_id <- 1:nrow(grid)
+
+# Convert schools to sf
+#schools_sf <- st_as_sf(geocoded_schools, coords = c("longitude", "latitude"), crs = 4326)
+#schools_sf <- st_transform(schools_sf, st_crs(grid))
+
+# Assign each school to a grid cell
+grid_schools <- st_join(schools_transformed, grid, join = st_within)
+
+# Count schools per grid cell
+school_counts <- grid_schools %>%
+  st_drop_geometry() %>%
+  group_by(grid_id) %>%
+  summarise(schools_count = n())
+
+# Merge counts back to grid
+grid <- left_join(grid, school_counts, by = "grid_id")
+grid$schools_count[is.na(grid$schools_count)] <- 0
+
+```
+
+
+```{r}
+cor.test(grid$count, grid$schools_count, method = "spearman")
+```
+
+```{r}
+# Use spatial weights from earlier
+moran.test(grid$schools_count, listw = lw)
+```
+
+
+
+
+
